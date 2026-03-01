@@ -255,7 +255,8 @@ def _generate_pdf(text: str) -> bytes:
         c.save()
         buf.seek(0)
         return buf.getvalue()
-    except ImportError:
+    except Exception as e:
+        st.error(f"PDF generation error: {e}")
         return None
 
 
@@ -319,4 +320,4 @@ def render_letter_view() -> None:
                     mime="application/pdf",
                 )
             else:
-                st.caption("Install `reportlab` for PDF export: `pip3 install reportlab`")
+                st.caption("PDF generation failed. Check the app logs for details.")
