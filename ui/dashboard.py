@@ -6,6 +6,11 @@ import streamlit as st
 
 from models import MergedData
 
+# Document source labels for page number display
+_SRC_CLAIM = "Claim Form"
+_SRC_PROGRESS = "Progress Note"
+_SRC_HOSPICE = "Hospice"
+
 
 def render_dashboard() -> None:
     """Display extracted reference data in a tabbed layout."""
@@ -29,41 +34,57 @@ def render_dashboard() -> None:
         _render_raw_data()
 
 
+def _patient_name_source(merged: MergedData) -> str:
+    """Determine which document patient name came from."""
+    progress = st.session_state.get("progress_data")
+    if progress and progress.patient_name:
+        return _SRC_PROGRESS
+    return _SRC_CLAIM
+
+
+def _dob_source(merged: MergedData) -> str:
+    """Determine which document DOB came from."""
+    progress = st.session_state.get("progress_data")
+    if progress and progress.dob:
+        return _SRC_PROGRESS
+    return _SRC_CLAIM
+
+
 def _render_reference_table(merged: MergedData) -> None:
     """Render patient demographics, address, and wound measurements."""
     col1, col2 = st.columns(2)
 
     with col1:
         st.markdown("**Patient Information**")
-        _field_row("Patient Name", merged.patient_name, merged.patient_name_page)
-        _field_row("Date of Birth", merged.dob, merged.dob_page)
-        _field_row("MRN", merged.patient_mrn, merged.patient_mrn_page)
-        _field_row("Hospice Status", merged.hospice_status, merged.hospice_status_page)
+        _field_row("Patient Name", merged.patient_name, merged.patient_name_page, _patient_name_source(merged))
+        _field_row("Date of Birth", merged.dob, merged.dob_page, _dob_source(merged))
+        _field_row("MRN", merged.patient_mrn, merged.patient_mrn_page, _SRC_PROGRESS)
+        _field_row("Hospice Status", merged.hospice_status, merged.hospice_status_page, _SRC_PROGRESS)
 
     with col2:
         st.markdown("**Address & Measurements**")
         address = _build_address(merged)
-        _field_row("Address", address, merged.city_page)
+        _field_row("Address", address, merged.city_page, _SRC_CLAIM)
         st.markdown("---")
         st.markdown("**Wound Measurements**")
-        _field_row("Length (cm)", merged.wound_length, merged.wound_length_page)
-        _field_row("Width (cm)", merged.wound_width, merged.wound_width_page)
-        _field_row("Depth (cm)", merged.wound_depth, merged.wound_depth_page)
+        _field_row("Length (cm)", merged.wound_length, merged.wound_length_page, _SRC_PROGRESS)
+        _field_row("Width (cm)", merged.wound_width, merged.wound_width_page, _SRC_PROGRESS)
+        _field_row("Depth (cm)", merged.wound_depth, merged.wound_depth_page, _SRC_PROGRESS)
 
 
 def _render_hospice_details(merged: MergedData) -> None:
     """Render hospice-specific extraction results."""
-    _field_row("NOE Date", merged.noe_date, merged.noe_date_page)
+    _field_row("NOE Date", merged.noe_date, merged.noe_date_page, _SRC_HOSPICE)
     _field_row("NOE Date Source", merged.noe_date_source)
-    _field_row("Terminal Diagnosis", merged.terminal_diagnosis, merged.terminal_diagnosis_page)
-    _field_row("Primary Diagnosis (Claim)", merged.primary_diagnosis_code, merged.primary_diagnosis_code_page)
-    _field_row("Secondary Diagnoses (Claim)", merged.secondary_diagnoses, merged.secondary_diagnoses_page)
-    _field_row("Hospice Secondary Diagnoses", merged.hospice_secondary_diagnoses, merged.hospice_secondary_diagnoses_page)
+    _field_row("Terminal Diagnosis", merged.terminal_diagnosis, merged.terminal_diagnosis_page, _SRC_HOSPICE)
+    _field_row("Primary Diagnosis (Claim)", merged.primary_diagnosis_code, merged.primary_diagnosis_code_page, _SRC_CLAIM)
+    _field_row("Secondary Diagnoses (Claim)", merged.secondary_diagnoses, merged.secondary_diagnoses_page, _SRC_CLAIM)
+    _field_row("Hospice Secondary Diagnoses", merged.hospice_secondary_diagnoses, merged.hospice_secondary_diagnoses_page, _SRC_HOSPICE)
 
     if merged.certification_periods:
         st.markdown("**Certification Periods**")
         for period in merged.certification_periods:
-            page_info = f" (p. {period.page})" if period.page else ""
+            page_info = f" *(Page {period.page}, {_SRC_HOSPICE})*" if period.page else ""
             st.markdown(
                 f"- **{period.period_name}**: {period.start_date} — {period.end_date}{page_info}"
             )
@@ -95,10 +116,33 @@ def _render_raw_data() -> None:
         st.json(doc_map.model_dump())
 
 
-def _field_row(label: str, value: Optional[str], page: Optional[str] = None) -> None:
-    """Display a single field as 'Label: Value (p. X)' with styling for missing values."""
-    display = value if (value and str(value).strip().lower() != "null") else "N/A"
-    page_info = f" *(p. {page})*" if page else ""
+def _is_valid(value: Optional[str]) -> bool:
+    """Check if a value is a real data value (not empty, null, or a field name)."""
+    if not value:
+        return False
+    stripped = str(value).strip().lower()
+    if stripped in ("null", "n/a", ""):
+        return False
+    # Catch cases where the LLM returns a field name instead of a value
+    if "_page" in stripped:
+        return False
+    return True
+
+
+def _field_row(
+    label: str,
+    value: Optional[str],
+    page: Optional[str] = None,
+    source: Optional[str] = None,
+) -> None:
+    """Display a single field as 'Label: Value (Page X, Source)'."""
+    display = value if _is_valid(value) else "N/A"
+    page_info = ""
+    if page and _is_valid(value):
+        if source:
+            page_info = f" *(Page {page}, {source})*"
+        else:
+            page_info = f" *(Page {page})*"
     st.markdown(f"**{label}:** {display}{page_info}")
 
 

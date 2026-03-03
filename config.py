@@ -90,7 +90,7 @@ Using the document map as a guide to locate relevant sections, extract the follo
    - terminal_diagnosis: The primary terminal/hospice diagnosis (the condition qualifying the patient for hospice care). Include the ICD-10 code if present.
 
 3. SECONDARY/RELATED DIAGNOSES:
-   - hospice_secondary_diagnoses: Extract any secondary or related diagnoses (ICD-10 codes and descriptions) found anywhere in the hospice document. These are conditions documented alongside the terminal diagnosis. Return as a comma-separated string, or null if none found.
+   - hospice_secondary_diagnoses: Look for sections explicitly labeled "Secondary Diagnoses" or "Related Diagnoses" in the document. Only extract diagnoses (ICD-10 codes and descriptions) from these labeled sections. Return as a comma-separated string. If no section with these exact labels exists, return "N/A".
 
 4. NOE DATE (Notice of Election Date):
    - Apply this logic in order:
