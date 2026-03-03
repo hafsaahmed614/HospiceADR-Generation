@@ -35,6 +35,11 @@ def init_session_state() -> None:
         # Generated letter
         "generated_letter": None,
         "letter_addressee": "",
+        # Template
+        "template_bytes": None,
+        "template_filename": None,
+        "filled_template_bytes": None,
+        "company_name": "",
         # Developer settings
         "claim_system_prompt": config.DEFAULT_CLAIM_PROMPT,
         "progress_system_prompt": config.DEFAULT_PROGRESS_PROMPT,

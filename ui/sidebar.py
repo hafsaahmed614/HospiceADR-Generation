@@ -1,15 +1,58 @@
-"""Sidebar with Developer Settings for editable system prompts."""
+"""Sidebar with Letter Template upload and Developer Settings."""
 
+import pandas as pd
 import streamlit as st
 
 import config
 
 
 def render_sidebar() -> None:
-    """Render the sidebar with Developer Settings expander."""
+    """Render the sidebar with template upload and Developer Settings."""
     with st.sidebar:
         st.header("Settings")
 
+        # --- Letter Template ---
+        st.subheader("Letter Template")
+
+        template_file = st.file_uploader(
+            "Upload DOCX Template",
+            type=["docx"],
+            key="template_uploader",
+            help=(
+                "Upload a .docx template with yellow-highlighted fields. "
+                "The app will detect highlighted areas and fill them with "
+                "extracted data. Formatting, logos, and images are preserved."
+            ),
+        )
+        if template_file is not None:
+            st.session_state["template_bytes"] = template_file.getvalue()
+            st.session_state["template_filename"] = template_file.name
+            st.session_state["filled_template_bytes"] = None
+
+        if st.session_state.get("template_bytes"):
+            st.success(f"Template: {st.session_state.get('template_filename', 'uploaded')}")
+
+            # Show detected fields
+            from template_filler import scan_template_placeholders
+
+            fields = scan_template_placeholders(st.session_state["template_bytes"])
+            if fields:
+                df = pd.DataFrame(fields)
+                df.columns = ["Field", "Type", "Status"]
+                st.caption("Detected template fields:")
+                st.dataframe(df, use_container_width=True, hide_index=True)
+
+        st.session_state["company_name"] = st.text_input(
+            "Company Name",
+            value=st.session_state.get("company_name", ""),
+            key="company_name_input",
+            placeholder="e.g., Healing Partners Plus PLLC",
+            help="Replaces the highlighted company name in the template body.",
+        )
+
+        st.divider()
+
+        # --- Developer Settings ---
         with st.expander("Developer Settings", expanded=False):
             st.caption("Edit the system prompts used for LLM extraction.")
 

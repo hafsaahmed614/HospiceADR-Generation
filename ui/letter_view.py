@@ -275,16 +275,54 @@ def render_letter_view() -> None:
         )
         return
 
-    addressee = st.text_input(
-        "Which facility will receive this ADR Response?",
+    addressee = st.text_area(
+        "Addressee (facility name and address)",
         value=st.session_state.get("letter_addressee", ""),
+        height=100,
         key="addressee_input",
-        placeholder="e.g., Palmetto GBA, Medicare Administrative Contractor",
+        placeholder="e.g.,\nNovitas Solutions, Inc.\nP.O. Box 3065\nMechanicsburg, PA 17055-1807",
     )
     st.session_state["letter_addressee"] = addressee
 
-    if st.button("Generate ADR Letter", type="primary"):
-        letter_text = generate_letter(merged, addressee=addressee)
+    # --- Custom Template Fill (when template is uploaded) ---
+    has_template = st.session_state.get("template_bytes") is not None
+
+    if has_template:
+        st.markdown(
+            f"**Custom Template:** {st.session_state.get('template_filename', 'uploaded')}"
+        )
+
+        if st.button("Fill Custom Template", type="primary"):
+            from template_filler import fill_docx_template
+
+            try:
+                filled = fill_docx_template(
+                    st.session_state["template_bytes"],
+                    merged,
+                    addressee=addressee,
+                    company_name=st.session_state.get("company_name", ""),
+                )
+                st.session_state["filled_template_bytes"] = filled
+            except Exception as e:
+                st.error(f"Template fill failed: {e}")
+
+        if st.session_state.get("filled_template_bytes"):
+            filename_base = _get_filename_base()
+            st.download_button(
+                label="Download Filled Template (.docx)",
+                data=st.session_state["filled_template_bytes"],
+                file_name=f"{filename_base}.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+
+        st.divider()
+        st.caption("Or use the built-in letter generator below:")
+
+    # --- Built-in Letter Generator (always available) ---
+    if st.button("Generate ADR Letter"):
+        # Use first line of addressee for the built-in template
+        addressee_first_line = addressee.strip().splitlines()[0] if addressee.strip() else ""
+        letter_text = generate_letter(merged, addressee=addressee_first_line)
         st.session_state["generated_letter"] = letter_text
 
     if st.session_state.get("generated_letter") is not None:
@@ -309,8 +347,9 @@ def render_letter_view() -> None:
         with col2:
             # Use the PDF-formatted template for proper alignment
             merged = st.session_state.get("merged_data")
-            addressee_val = st.session_state.get("letter_addressee", "")
-            pdf_text = generate_letter_for_pdf(merged, addressee=addressee_val)
+            addressee_val = st.session_state.get("letter_addressee", "").strip().splitlines()
+            addressee_first = addressee_val[0] if addressee_val else ""
+            pdf_text = generate_letter_for_pdf(merged, addressee=addressee_first)
             pdf_bytes = _generate_pdf(pdf_text)
             if pdf_bytes:
                 st.download_button(
