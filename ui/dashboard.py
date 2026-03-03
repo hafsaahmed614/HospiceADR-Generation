@@ -5,6 +5,7 @@ from typing import Optional
 import streamlit as st
 
 from models import MergedData
+from ui.document_preview import render_document_preview
 
 # Document source labels for page number display
 _SRC_CLAIM = "Claim Form"
@@ -20,8 +21,8 @@ def render_dashboard() -> None:
 
     st.subheader("Extraction Results")
 
-    tab_ref, tab_hospice, tab_raw = st.tabs(
-        ["Reference Data", "Hospice Details", "Raw Extractions"]
+    tab_ref, tab_hospice, tab_preview, tab_raw = st.tabs(
+        ["Reference Data", "Hospice Details", "Document Preview", "Raw Extractions"]
     )
 
     with tab_ref:
@@ -29,6 +30,9 @@ def render_dashboard() -> None:
 
     with tab_hospice:
         _render_hospice_details(merged)
+
+    with tab_preview:
+        render_document_preview()
 
     with tab_raw:
         _render_raw_data()

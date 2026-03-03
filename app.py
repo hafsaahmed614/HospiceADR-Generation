@@ -10,7 +10,7 @@ from extractors.hospice import extract_hospice_data
 from extractors.progress_note import extract_progress_note
 from llm import ExtractionError
 from models import merge_data
-from ocr import extract_text_from_file
+from ocr import extract_text_and_data
 from ui.dashboard import render_dashboard
 from ui.letter_view import render_letter_view
 from ui.sidebar import render_sidebar
@@ -24,6 +24,13 @@ def init_session_state() -> None:
         "hospice_ocr_text": None,
         "claim_ocr_text": None,
         "progress_ocr_text": None,
+        # Page images and OCR bounding box data (for document preview)
+        "hospice_page_images": None,
+        "claim_page_images": None,
+        "progress_page_images": None,
+        "hospice_ocr_data": None,
+        "claim_ocr_data": None,
+        "progress_ocr_data": None,
         # Extraction results
         "claim_data": None,
         "progress_data": None,
@@ -92,9 +99,10 @@ def main() -> None:
 
             # Hospice OCR (always required)
             try:
-                st.session_state["hospice_ocr_text"] = extract_text_from_file(
-                    hospice_file
-                )
+                text, images, ocr_data = extract_text_and_data(hospice_file)
+                st.session_state["hospice_ocr_text"] = text
+                st.session_state["hospice_page_images"] = images
+                st.session_state["hospice_ocr_data"] = ocr_data
                 st.write("  Hospice document OCR complete.")
             except Exception as e:
                 errors.append(f"Hospice OCR failed: {e}")
@@ -103,9 +111,10 @@ def main() -> None:
             # Claim Form OCR (optional)
             if has_claim:
                 try:
-                    st.session_state["claim_ocr_text"] = extract_text_from_file(
-                        claim_file
-                    )
+                    text, images, ocr_data = extract_text_and_data(claim_file)
+                    st.session_state["claim_ocr_text"] = text
+                    st.session_state["claim_page_images"] = images
+                    st.session_state["claim_ocr_data"] = ocr_data
                     st.write("  Claim Form OCR complete.")
                 except Exception as e:
                     errors.append(f"Claim Form OCR failed: {e}")
@@ -114,9 +123,10 @@ def main() -> None:
             # Progress Note OCR (optional)
             if has_progress:
                 try:
-                    st.session_state["progress_ocr_text"] = extract_text_from_file(
-                        progress_file
-                    )
+                    text, images, ocr_data = extract_text_and_data(progress_file)
+                    st.session_state["progress_ocr_text"] = text
+                    st.session_state["progress_page_images"] = images
+                    st.session_state["progress_ocr_data"] = ocr_data
                     st.write("  Progress Note OCR complete.")
                 except Exception as e:
                     errors.append(f"Progress Note OCR failed: {e}")
