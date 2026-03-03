@@ -48,8 +48,12 @@ def _extract_clinical_data(
 
     return HospiceData(
         noe_date=noe_date,
+        noe_date_page=result.get("noe_date_page"),
         noe_date_source=noe_source,
         terminal_diagnosis=result.get("terminal_diagnosis"),
+        terminal_diagnosis_page=result.get("terminal_diagnosis_page"),
+        hospice_secondary_diagnoses=result.get("hospice_secondary_diagnoses"),
+        hospice_secondary_diagnoses_page=result.get("hospice_secondary_diagnoses_page"),
         certification_periods=periods,
     )
 

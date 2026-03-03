@@ -8,7 +8,6 @@ import config
 from extractors.claim_form import extract_claim_form
 from extractors.hospice import extract_hospice_data
 from extractors.progress_note import extract_progress_note
-from letter import letter_has_sufficient_data
 from llm import ExtractionError
 from models import merge_data
 from ocr import extract_text_from_file
@@ -32,8 +31,7 @@ def init_session_state() -> None:
         "hospice_doc_map": None,
         # Merged result
         "merged_data": None,
-        # Generated letter
-        "generated_letter": None,
+        # Letter
         "letter_addressee": "",
         # Template
         "template_bytes": None,
@@ -174,7 +172,7 @@ def main() -> None:
                 hospice=st.session_state.get("hospice_data"),
             )
             st.session_state["merged_data"] = merged
-            st.session_state["generated_letter"] = None  # Reset letter on new merge
+            st.session_state["filled_template_bytes"] = None  # Reset on new merge
 
             if errors:
                 status.update(

@@ -1,4 +1,4 @@
-"""Constants, system prompts, response schemas, and letter template."""
+"""Constants, system prompts, and response schemas."""
 
 MODEL_NAME = "gemini-3-flash-preview"
 
@@ -25,6 +25,7 @@ ADR Letter Fields:
 Extraction Rules:
 - If a field is illegible or missing, return null.
 - Clean any OCR "noise" (e.g., ignore random symbols or partial words like "PICA" or "FICA").
+- For each field, also return the page number where the value was found using the "--- Page X ---" markers in the OCR text. Use the field name with a "_page" suffix (e.g., "patient_name_page": "1").
 - Return a single JSON object."""
 
 DEFAULT_PROGRESS_PROMPT = """\
@@ -44,7 +45,8 @@ Clinical Measurements:
 Extraction Rules:
 1. Do not "calculate" or "guess" measurements; only extract the literal values provided in the text (e.g., "5.00", "7.50", "0.8").
 2. Ensure the "Hospice Status" is captured as a boolean or string based on the document's encounter information.
-3. Clean any Tesseract-specific artifacts (e.g., tags) before finalizing the JSON."""
+3. Clean any Tesseract-specific artifacts (e.g., tags) before finalizing the JSON.
+4. For each field, also return the page number where the value was found using the "--- Page X ---" markers in the OCR text. Use the field name with a "_page" suffix (e.g., "patient_name_page": "1")."""
 
 HOSPICE_STAGE1_PROMPT = """\
 System Persona: You are a medical document analysis specialist.
@@ -82,11 +84,15 @@ Using the document map as a guide to locate relevant sections, extract the follo
    - period_name: e.g., "Benefit Period 1", "Benefit Period 2", "Initial Certification"
    - start_date: Start date (MM/DD/YYYY)
    - end_date: End date (MM/DD/YYYY)
+   - page: The page number where this period was found
 
 2. TERMINAL DIAGNOSIS:
    - terminal_diagnosis: The primary terminal/hospice diagnosis (the condition qualifying the patient for hospice care). Include the ICD-10 code if present.
 
-3. NOE DATE (Notice of Election Date):
+3. SECONDARY/RELATED DIAGNOSES:
+   - hospice_secondary_diagnoses: Extract any secondary or related diagnoses (ICD-10 codes and descriptions) found anywhere in the hospice document. These are conditions documented alongside the terminal diagnosis. Return as a comma-separated string, or null if none found.
+
+4. NOE DATE (Notice of Election Date):
    - Apply this logic in order:
      a. Find "Benefit Period 1" in the certification periods. If found, the start_date of Benefit Period 1 is the NOE date.
      b. If Benefit Period 1 is not found, look for a "Start of Care" (SOC) date anywhere in the document and use that as the NOE date.
@@ -94,130 +100,13 @@ Using the document map as a guide to locate relevant sections, extract the follo
    - noe_date: The determined NOE date (MM/DD/YYYY)
    - noe_date_source: Either "Benefit Period 1" or "SOC Date" indicating which was used.
 
+Page Numbers:
+- For terminal_diagnosis, hospice_secondary_diagnoses, and noe_date, also return the page number where each was found using the "--- Page X ---" markers. Use the field name with a "_page" suffix (e.g., "terminal_diagnosis_page": "3").
+
 DOCUMENT MAP FOR REFERENCE:
 {document_map_json}
 
 Return all fields in a single JSON object."""
-
-LETTER_GENERATION_PROMPT = """\
-System Persona: You are a Director of Medical Affairs and ADR (Additional Documentation Request) Specialist. \
-Your goal is to draft a formal, legally and clinically sound response letter to a Medical Review Manager.
-
-Input Data (Extracted from previous stages):
-{merged_data_json}
-
-Task: Use the template below to generate the letter.
-
-Logical Instructions for Filling Fields:
-1. Patient Name & DOB: Prioritize data from the Progress Note.
-2. UWI Primary Diagnosis: Use the Primary Diagnosis Code from the Claim Form.
-3. Hospice NOE Date: Look at the certification_periods. If "Benefit Period 1" exists, use its start_date. If not, use the SOC Date.
-4. Hospice Terminal Diagnosis: Use the diagnosis description and code found in the Hospice Document.
-5. Certification Date(s): List all date ranges found in the certification_periods array to show continuous coverage.
-6. UWI Secondary/Related Diagnosis: Use Secondary DX from Claim Form, or "N/A" if not found.
-
-Template:
-{addressee}
-{date}
-
-Saad Mohsin, M.D.
-Director of Medical Affairs
-2020 Calamos Court, Second Floor
-Naperville, IL. 60563
-
-Re: ADR Response - Certification of Services Unrelated to Terminal Illness
-
-Dear Medical Review Manager,
-
-I am the Director of Medical Affairs with United Woundcare Institute ("UWI") and oversee the treating providers and Medical Directors who provide wound care services. Please find enclosed the following to support the Additional Development Request for additional information.
-
-The information requested is summarized below:
-Patient Name: [Inserted Name]
-Date of Birth: [Inserted DOB]
-UWI Primary Diagnosis: [Inserted Primary DX]
-UWI Secondary/Related Diagnosis: [Inserted Secondary DX or "N/A"]
-Hospice NOE Date: [Inserted NOE Date]
-Hospice Terminal Diagnosis: [Inserted Hospice Terminal DX]
-Certification Date(s): [Inserted Certification Dates]
-
-Very truly yours,
-
-Saad Mohsin, M.D.
-
-Return the complete letter as a single string."""
-
-# ---------------------------------------------------------------------------
-# Letter Template (for deterministic template filling)
-# ---------------------------------------------------------------------------
-
-LETTER_TEMPLATE = """\
-                                                Saad Mohsin, M.D.
-                                                Director of Medical Affairs
-                                                2020 Calamos Court, Second Floor
-                                                Naperville, IL  60563
-
-                                    {date}
-
-{addressee}
-
-        Re:     ADR Response- Certification of Services Unrelated to Terminal Illness
-
-Dear Medical Review Manager,
-
-        I am the Director of Medical Affairs with United Woundcare Institute ("UWI") and oversee the treating providers and Medical Directors who provide wound care services.  Please find enclosed the following to support the Additional Development Request for additional information.
-
-        The information requested is summarized below:
-
-Patient Name: {patient_name}
-Date of Birth: {dob}
-UWI Primary Diagnosis: {primary_diagnosis}
-UWI Secondary/Related Diagnoses: {secondary_diagnosis}
-
-Hospice NOE Date: {noe_date}
-Hospice Terminal Diagnosis: {terminal_diagnosis}
-Certification Date(s): {certification_periods}
-
-                                                Very truly yours,
-
-
-
-                                                Saad Mohsin, M.D.
-
-Enclosures"""
-
-# Clean display template (for Streamlit text area — no excessive whitespace)
-LETTER_DISPLAY_TEMPLATE = """\
-Saad Mohsin, M.D.
-Director of Medical Affairs
-2020 Calamos Court, Second Floor
-Naperville, IL  60563
-
-{date}
-
-{addressee}
-
-Re: ADR Response- Certification of Services Unrelated to Terminal Illness
-
-Dear Medical Review Manager,
-
-I am the Director of Medical Affairs with United Woundcare Institute ("UWI") and oversee the treating providers and Medical Directors who provide wound care services. Please find enclosed the following to support the Additional Development Request for additional information.
-
-The information requested is summarized below:
-
-Patient Name: {patient_name}
-Date of Birth: {dob}
-UWI Primary Diagnosis: {primary_diagnosis}
-UWI Secondary/Related Diagnoses: {secondary_diagnosis}
-
-Hospice NOE Date: {noe_date}
-Hospice Terminal Diagnosis: {terminal_diagnosis}
-Certification Date(s): {certification_periods}
-
-Very truly yours,
-
-Saad Mohsin, M.D.
-
-Enclosures"""
 
 # ---------------------------------------------------------------------------
 # Response Schemas (for Gemini JSON mode)
@@ -227,18 +116,25 @@ CLAIM_FORM_SCHEMA = {
     "type": "OBJECT",
     "properties": {
         "patient_name": {"type": "STRING", "description": "Patient name from Box 2"},
+        "patient_name_page": {"type": "STRING", "description": "Page number where patient name was found"},
         "dob": {"type": "STRING", "description": "Date of birth from Box 3 (MM/DD/YYYY)"},
+        "dob_page": {"type": "STRING", "description": "Page number where DOB was found"},
         "city": {"type": "STRING", "description": "City from Box 5"},
+        "city_page": {"type": "STRING", "description": "Page number where city was found"},
         "state": {"type": "STRING", "description": "State from Box 5"},
+        "state_page": {"type": "STRING", "description": "Page number where state was found"},
         "zip_code": {"type": "STRING", "description": "ZIP code from Box 5"},
+        "zip_code_page": {"type": "STRING", "description": "Page number where ZIP was found"},
         "primary_diagnosis_code": {
             "type": "STRING",
             "description": "ICD-10 code from Box 21 line A",
         },
+        "primary_diagnosis_code_page": {"type": "STRING", "description": "Page number where primary DX was found"},
         "secondary_diagnoses": {
             "type": "STRING",
             "description": "ICD-10 codes from Box 21 lines B/C/D, comma-separated",
         },
+        "secondary_diagnoses_page": {"type": "STRING", "description": "Page number where secondary DX was found"},
     },
     "required": [
         "patient_name",
@@ -255,15 +151,22 @@ PROGRESS_NOTE_SCHEMA = {
     "type": "OBJECT",
     "properties": {
         "patient_name": {"type": "STRING", "description": "Full patient name"},
+        "patient_name_page": {"type": "STRING", "description": "Page number where patient name was found"},
         "dob": {"type": "STRING", "description": "Date of birth (MM/DD/YYYY)"},
+        "dob_page": {"type": "STRING", "description": "Page number where DOB was found"},
         "patient_mrn": {"type": "STRING", "description": "Medical Record Number"},
+        "patient_mrn_page": {"type": "STRING", "description": "Page number where MRN was found"},
         "hospice_status": {
             "type": "STRING",
             "description": "Is this patient in Hospice (Yes/No)",
         },
+        "hospice_status_page": {"type": "STRING", "description": "Page number where hospice status was found"},
         "wound_length": {"type": "STRING", "description": "Wound length in cm"},
+        "wound_length_page": {"type": "STRING", "description": "Page number where wound length was found"},
         "wound_width": {"type": "STRING", "description": "Wound width in cm"},
+        "wound_width_page": {"type": "STRING", "description": "Page number where wound width was found"},
         "wound_depth": {"type": "STRING", "description": "Wound depth in cm"},
+        "wound_depth_page": {"type": "STRING", "description": "Page number where wound depth was found"},
     },
     "required": [
         "patient_name",
@@ -323,12 +226,20 @@ HOSPICE_STAGE2_SCHEMA = {
                     "period_name": {"type": "STRING"},
                     "start_date": {"type": "STRING"},
                     "end_date": {"type": "STRING"},
+                    "page": {"type": "STRING", "description": "Page number where this period was found"},
                 },
                 "required": ["period_name", "start_date", "end_date"],
             },
         },
         "terminal_diagnosis": {"type": "STRING"},
+        "terminal_diagnosis_page": {"type": "STRING", "description": "Page number where terminal diagnosis was found"},
+        "hospice_secondary_diagnoses": {
+            "type": "STRING",
+            "description": "Secondary/related diagnoses from hospice document, comma-separated ICD-10 codes and descriptions",
+        },
+        "hospice_secondary_diagnoses_page": {"type": "STRING", "description": "Page number where secondary diagnoses were found"},
         "noe_date": {"type": "STRING"},
+        "noe_date_page": {"type": "STRING", "description": "Page number where NOE date was found"},
         "noe_date_source": {"type": "STRING"},
     },
     "required": [
