@@ -184,20 +184,26 @@ def fill_docx_template(
                 addressee_end = end
             break
 
-    if addressee_start is not None and addressee_lines:
-        # Fill existing addressee paragraphs with new lines
+    if addressee_start is not None:
         addr_paras = list(range(addressee_start, addressee_end + 1))
-        for idx, para_idx in enumerate(addr_paras):
-            if idx < len(addressee_lines):
-                _set_paragraph_text(paragraphs[para_idx], addressee_lines[idx])
-            else:
-                _set_paragraph_text(paragraphs[para_idx], "")
+        if addressee_lines:
+            # Fill existing addressee paragraphs with new lines
+            for idx, para_idx in enumerate(addr_paras):
+                if idx < len(addressee_lines):
+                    _set_paragraph_text(paragraphs[para_idx], addressee_lines[idx])
+                else:
+                    _set_paragraph_text(paragraphs[para_idx], "")
 
-        # If user provided more lines than template has, append to the last paragraph
-        if len(addressee_lines) > len(addr_paras):
-            extra = " ".join(addressee_lines[len(addr_paras):])
-            last_para = paragraphs[addressee_end]
-            last_para.runs[0].text = last_para.runs[0].text + " " + extra
+            # If user provided more lines than template has, append to the last paragraph
+            if len(addressee_lines) > len(addr_paras):
+                extra = " ".join(addressee_lines[len(addr_paras):])
+                last_para = paragraphs[addressee_end]
+                last_para.runs[0].text = last_para.runs[0].text + " " + extra
+        else:
+            # No addressee provided — replace with placeholder
+            _set_paragraph_text(paragraphs[addressee_start], "[Addressee]")
+            for para_idx in addr_paras[1:]:
+                _set_paragraph_text(paragraphs[para_idx], "")
 
     # --- Pass 3: Find and fill yellow field lines (contain ":") ---
     for para in paragraphs:
