@@ -47,15 +47,6 @@ def render_letter_view() -> None:
         st.warning("Upload a DOCX template in the sidebar to generate a letter.")
         return
 
-    addressee = st.text_area(
-        "Addressee (facility name and address)",
-        value=st.session_state.get("letter_addressee", ""),
-        height=100,
-        key="addressee_input",
-        placeholder="e.g.,\nNovitas Solutions, Inc.\nP.O. Box 3065\nMechanicsburg, PA 17055-1807",
-    )
-    st.session_state["letter_addressee"] = addressee
-
     st.markdown(
         f"**Template:** {st.session_state.get('template_filename', 'uploaded')}"
     )
@@ -67,7 +58,7 @@ def render_letter_view() -> None:
             filled = fill_docx_template(
                 st.session_state["template_bytes"],
                 merged,
-                addressee=addressee,
+                addressee=st.session_state.get("letter_addressee", ""),
                 company_name=st.session_state.get("company_name", ""),
             )
             st.session_state["filled_template_bytes"] = filled

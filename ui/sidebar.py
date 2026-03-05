@@ -50,6 +50,15 @@ def render_sidebar() -> None:
             help="Replaces the highlighted company name in the template body.",
         )
 
+        st.session_state["letter_addressee"] = st.text_area(
+            "Addressee (facility name and address)",
+            value=st.session_state.get("letter_addressee", ""),
+            height=100,
+            key="addressee_input",
+            placeholder="e.g.,\nNovitas Solutions, Inc.\nP.O. Box 3065\nMechanicsburg, PA 17055-1807",
+            help="Replaces the highlighted addressee block in the template.",
+        )
+
         st.divider()
 
         # --- Developer Settings ---
