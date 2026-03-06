@@ -1,18 +1,23 @@
-"""Gemini client wrapper with JSON structured output."""
+"""Vertex AI Gemini client wrapper with JSON structured output (HIPAA-compliant)."""
 
 import json
 import os
 from pathlib import Path
 
 import streamlit as st
-from dotenv import load_dotenv
 from google import genai
 from google.genai import types
+from google.oauth2 import service_account
 
 import config
 
-# Resolve .env relative to this file's directory (the project root)
+# Resolve paths relative to this file's directory (the project root)
 _PROJECT_DIR = Path(__file__).resolve().parent
+
+# Vertex AI configuration
+_VERTEX_PROJECT = "gen-lang-client-0813470630"
+_VERTEX_LOCATION = "us-central1"
+_DEFAULT_KEY_FILE = "gen-lang-client-0813470630-54bcbcbd9e1f.json"
 
 
 class ExtractionError(Exception):
@@ -21,20 +26,29 @@ class ExtractionError(Exception):
 
 @st.cache_resource
 def _get_client() -> genai.Client:
-    """Load API key from .env and return a configured Gemini client."""
-    # Try .env file first (local dev), then Streamlit secrets (cloud deployment)
-    load_dotenv(dotenv_path=_PROJECT_DIR / ".env")
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        try:
-            api_key = st.secrets["GEMINI_API_KEY"]
-        except (KeyError, FileNotFoundError):
-            pass
-    if not api_key:
+    """Load service account credentials and return a Vertex AI Gemini client."""
+    key_path = os.getenv(
+        "GOOGLE_APPLICATION_CREDENTIALS",
+        str(_PROJECT_DIR / _DEFAULT_KEY_FILE),
+    )
+
+    if not Path(key_path).exists():
         raise ExtractionError(
-            "GEMINI_API_KEY not found. Set it in .env (local) or Streamlit Secrets (cloud)."
+            f"Service account key not found at '{key_path}'. "
+            "Place the JSON key in the project root or set GOOGLE_APPLICATION_CREDENTIALS."
         )
-    return genai.Client(api_key=api_key)
+
+    credentials = service_account.Credentials.from_service_account_file(
+        key_path,
+        scopes=["https://www.googleapis.com/auth/cloud-platform"],
+    )
+
+    return genai.Client(
+        vertexai=True,
+        project=_VERTEX_PROJECT,
+        location=_VERTEX_LOCATION,
+        credentials=credentials,
+    )
 
 
 def extract_json(
