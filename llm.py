@@ -26,22 +26,51 @@ class ExtractionError(Exception):
 
 @st.cache_resource
 def _get_client() -> genai.Client:
-    """Load service account credentials and return a Vertex AI Gemini client."""
-    key_path = os.getenv(
-        "GOOGLE_APPLICATION_CREDENTIALS",
-        str(_PROJECT_DIR / _DEFAULT_KEY_FILE),
-    )
+    """Load credentials and return a Vertex AI Gemini client.
 
-    if not Path(key_path).exists():
-        raise ExtractionError(
-            f"Service account key not found at '{key_path}'. "
-            "Place the JSON key in the project root or set GOOGLE_APPLICATION_CREDENTIALS."
+    Tries credential sources in order:
+    1. Application Default Credentials (Cloud Run / local gcloud auth)
+    2. Streamlit Secrets (Streamlit Community Cloud)
+    3. Local JSON key file (local development fallback)
+    """
+    credentials = None
+
+    # 1. Try Application Default Credentials (Cloud Run / local gcloud auth)
+    try:
+        import google.auth
+
+        credentials, _ = google.auth.default(
+            scopes=["https://www.googleapis.com/auth/cloud-platform"],
         )
+    except google.auth.exceptions.DefaultCredentialsError:
+        pass
 
-    credentials = service_account.Credentials.from_service_account_file(
-        key_path,
-        scopes=["https://www.googleapis.com/auth/cloud-platform"],
-    )
+    # 2. Try Streamlit Secrets (for Streamlit Community Cloud)
+    if credentials is None:
+        try:
+            service_account_info = json.loads(st.secrets["gcp_service_account"])
+            credentials = service_account.Credentials.from_service_account_info(
+                service_account_info,
+                scopes=["https://www.googleapis.com/auth/cloud-platform"],
+            )
+        except (KeyError, FileNotFoundError):
+            pass
+
+    # 3. Fall back to local JSON key file (for local development)
+    if credentials is None:
+        key_path = os.getenv(
+            "GOOGLE_APPLICATION_CREDENTIALS",
+            str(_PROJECT_DIR / _DEFAULT_KEY_FILE),
+        )
+        if not Path(key_path).exists():
+            raise ExtractionError(
+                "GCP credentials not found. Tried ADC, Streamlit Secrets, "
+                "and local JSON key file."
+            )
+        credentials = service_account.Credentials.from_service_account_file(
+            key_path,
+            scopes=["https://www.googleapis.com/auth/cloud-platform"],
+        )
 
     return genai.Client(
         vertexai=True,

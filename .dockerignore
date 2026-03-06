@@ -1,0 +1,10 @@
+.git
+.gitignore
+.env
+.venv
+venv
+__pycache__
+*.pyc
+.claude
+*.json
+FUTURE_FEATURES.md
